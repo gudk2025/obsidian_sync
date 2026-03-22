@@ -1,99 +1,94 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import {DEFAULT_SETTINGS, MyPluginSettings, SampleSettingTab} from "./settings";
+import { App, Notice, Plugin, PluginSettingTab, Setting, Modal, MarkdownView } from 'obsidian';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
-// Remember to rename these classes and interfaces!
+// 封装 exec 为 Promise 形式，支持 async/await
+const execAsync = promisify(exec);
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+// 插件核心类
+export default class SyncNotePlugin extends Plugin {
+  vaultPath: string; // 存储vault根目录路径
 
-	async onload() {
-		await this.loadSettings();
+  async onload() {
+ 
+  
+    // 获取vault根目录路径
+    this.vaultPath = this.app.vault.adapter.getBasePath();
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+    // 2. 添加侧边栏图标按钮（上传/下载）
+    this.addRibbonIcon("cloud-download", "下载笔记", async () => {
+      await this.downloadNotes();
+    });
+    this.addRibbonIcon("cloud-upload", "上传笔记", async () => {
+      await this.uploadNotes();
+    });
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+    // 3. 可选：添加状态栏文本（可删除）
+    const statusBarItemEl = this.addStatusBarItem();
+    statusBarItemEl.setText("Git笔记同步插件已加载");
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+    // 4. 注册命令面板命令（核心：上传/下载）
+    this.addCommand({
+      id: "git-download-notes",
+      name: "下载笔记",
+      callback: async () => await this.downloadNotes()
+    });
+    this.addCommand({
+      id: "git-upload-notes",
+      name: "上传笔记",
+      callback: async () => await this.uploadNotes()
+    }); 
+  }
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			}
-		});
+  onunload() {
+    console.log("Git笔记同步插件已卸载");
+  }
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+  /**
+   * 下载笔记：执行 git pull
+   */
+  async downloadNotes() {
+    try {
+      new Notice('开始下载笔记...');
+      // 在vault目录执行git pull
+      await execAsync('git pull', { cwd: this.vaultPath });
+      new Notice('笔记下载成功！');
+    } catch (error: any) {
+      console.error('下载失败:', error);
+      const errorMsg = error.message ? error.message.substring(0, 100) : '未知错误';
+      new Notice(`下载失败：${errorMsg}`, 10000);
+    }
+  }
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			new Notice("Click");
-		});
+  /**
+   * 上传笔记：执行 git commit + git push
+   */
+  async uploadNotes() {
+    try {
+      new Notice('开始上传笔记...');
+      // 生成带时间戳的commit信息
+      const currentDatetime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).replace(/\//g, '-').replace(/\s+/g, ' ');
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+      // 执行git commit
+      const commitCmd = `git commit -am "上传笔记${currentDatetime}"`;
+      await execAsync(commitCmd, { cwd: this.vaultPath });
+      // 执行git push
+      await execAsync('git push', { cwd: this.vaultPath });
 
-	}
-
-	onunload() {
-	}
-
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData() as Partial<MyPluginSettings>);
-	}
-
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
+      new Notice('笔记上传成功！');
+    } catch (error: any) {
+      console.error('上传失败:', error);
+      const errorMsg = error.message ? error.message.substring(0, 100) : '未知错误';
+      new Notice(`上传失败：${errorMsg}`, 10000);
+    }
+  }
+ 
 }
