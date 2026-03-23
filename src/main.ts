@@ -10,13 +10,11 @@ export default class SyncNotePlugin extends Plugin {
   vaultPath: string; // 存储vault根目录路径
 
   async onload() {
- 
-  
     // 获取vault根目录路径
     this.vaultPath = this.app.vault.adapter.getBasePath();
 
     // 2. 添加侧边栏图标按钮（上传/下载）
-    this.addRibbonIcon("cloud-download", "下载笔记", async () => {
+    this.addRibbonIcon("refresh-cw", "下载笔记", async () => {
       await this.downloadNotes();
     });
     this.addRibbonIcon("cloud-upload", "上传笔记", async () => {
