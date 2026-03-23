@@ -66,19 +66,9 @@ export default class SyncNotePlugin extends Plugin {
   async uploadNotes() {
     try {
       new Notice('开始上传笔记...');
-      // 生成带时间戳的commit信息
-      const currentDatetime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      }).replace(/\//g, '-').replace(/\s+/g, ' ');
-
       // 执行git commit
-      const commitCmd = `git commit -am "上传笔记${currentDatetime}"`;
+      const commitCmd = `git commit -am "上传笔记${this.vaultPath}"`;
+	  await execAsync("git add .", { cwd: this.vaultPath });
       await execAsync(commitCmd, { cwd: this.vaultPath });
       // 执行git push
       await execAsync('git push', { cwd: this.vaultPath });
