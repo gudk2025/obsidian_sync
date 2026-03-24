@@ -49,13 +49,12 @@ export default class SyncNotePlugin extends Plugin {
     try {
       new Notice('开始下载笔记...');
       // 在vault目录执行git pull
-      await execAsync('git pull', { cwd: this.vaultPath });
-      new Notice('笔记下载成功！');
-    } catch (error: any) {
-      console.error('下载失败:', error);
-      const errorMsg = error.message ? error.message.substring(0, 100) : '未知错误';
-      new Notice(`下载失败：${errorMsg}`, 10000);
-    }
+      const { stdout, stderr } = await execAsync('git pull', { cwd: this.vaultPath });
+      new Notice(stdout + stderr);
+    } catch (err: any) {
+      var output2 = err.message + err.stdout + err.stderr
+      new Notice(`上传失败：${output2}`);
+	}
   }
 
   /**
@@ -65,17 +64,19 @@ export default class SyncNotePlugin extends Plugin {
     try {
       new Notice('开始上传笔记...');
       // 执行git commit
-      const commitCmd = `git commit -am "上传笔记${this.vaultPath}"`;
-	  await execAsync("git add .", { cwd: this.vaultPath });
-      await execAsync(commitCmd, { cwd: this.vaultPath });
+      const commitCmd = `git commit -am "上传笔记 ${this.vaultPath}"`;
+	  var output = ""
+	  const res1 = await execAsync("git add .", { cwd: this.vaultPath });
+      output += (res1.stdout + res1.stderr)
+      const res2  = await execAsync(commitCmd, { cwd: this.vaultPath });
+	  output += (res2.stdout + res2.stderr)
       // 执行git push
-      await execAsync('git push', { cwd: this.vaultPath });
-
-      new Notice('笔记上传成功！');
-    } catch (error: any) {
-      console.error('上传失败:', error);
-      const errorMsg = error.message ? error.message.substring(0, 100) : '未知错误';
-      new Notice(`上传失败：${errorMsg}`, 10000);
+      const res3 = await execAsync('git push', { cwd: this.vaultPath });
+	  output += (res3.stdout + res3.stderr)
+      new Notice(output);
+    } catch (err: any) {
+	  var output2 = err.message + err.stdout + err.stderr
+      new Notice(`上传失败：${output2}`);
     }
   }
  
